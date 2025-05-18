@@ -1,0 +1,26 @@
+{
+  "name": "tagfs-vscode",
+  "displayName": "TagFS Integration",
+  "description": "VS Code extension to interact with TagFS for hierarchical file tagging.",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "activationEvents": [
+    "onCommand:tagfs.helloWorld"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "tagfs.helloWorld",
+        "title": "TagFS: Hello World"
+      }
+    ]
+  },
+  "categories": [
+    "Other"
+  ],
+  "scripts": {},
+  "dependencies": {}
+}
