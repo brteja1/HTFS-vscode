@@ -23,32 +23,32 @@
     "commands": [
       {
         "command": "tagfs.init",
-        "title": "TagFS: Initialize",
+        "title": "Initialize",
         "category": "TagFS"
       },
       {
         "command": "tagfs.listtags",
-        "title": "TagFS: Show all tags",
+        "title": "Show All Tags",
         "category": "TagFS"
       },
       {
         "command": "tagfs.addtag",
-        "title": "TagFS: Add new tag",
+        "title": "Add New Tag",
         "category": "TagFS"
       },
       {
         "command": "tagfs.editfiletags",
-        "title": "TagFS: Add/Remove tags to file",
+        "title": "Add/Remove Tags to File",
         "category": "TagFS"
       },
       {
         "command": "tagfs.searchbytag",
-        "title": "TagFS: Search for files with tags",
+        "title": "Search for Files with Tags",
         "category": "TagFS"
       },
       {
         "command": "tagfs.showfiletags",
-        "title": "TagFS: Show tags for file",
+        "title": "Show Tags for File",
         "category": "TagFS"
       }
     ]
