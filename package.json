@@ -6,15 +6,39 @@
   "engines": {
     "vscode": "^1.70.0"
   },
-  "activationEvents": [
-    "onCommand:tagfs.helloWorld"
-  ],
+  "publisher": "Raghu Boggavarapu",
   "main": "./extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "tagfs.helloWorld",
-        "title": "TagFS: Hello World"
+        "command": "tagfs.init",
+        "title": "TagFS: Initialize",
+        "category": "TagFS"
+      },
+      {
+        "command": "tagfs.listtags",
+        "title": "TagFS: Show all tags",
+        "category": "TagFS"
+      },
+      {
+        "command": "tagfs.addtag",
+        "title": "TagFS: Add new tag",
+        "category": "TagFS"
+      },
+      {
+        "command": "tagfs.editfiletags",
+        "title": "TagFS: Add/Remove tags to file",
+        "category": "TagFS"
+      },
+      {
+        "command": "tagfs.searchbytag",
+        "title": "TagFS: Search for files with tags",
+        "category": "TagFS"
+      },
+      {
+        "command": "tagfs.showfiletags",
+        "title": "TagFS: Show tags for file",
+        "category": "TagFS"
       }
     ]
   },
