@@ -6,7 +6,18 @@
   "engines": {
     "vscode": "^1.70.0"
   },
-  "publisher": "Raghu Boggavarapu",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/brteja1/HTFS-vscode.git"
+  },
+  "activationEvents": [
+    "onCommand:tagfs.init",
+    "onCommand:tagfs.listtags",
+    "onCommand:tagfs.addtag",
+    "onCommand:tagfs.editfiletags",
+    "onCommand:tagfs.searchbytag",
+    "onCommand:tagfs.showfiletags"
+  ],
   "main": "./extension.js",
   "contributes": {
     "commands": [
@@ -45,6 +56,13 @@
   "categories": [
     "Other"
   ],
-  "scripts": {},
-  "dependencies": {}
+  "scripts": {
+    "vscode:package": "vsce package -o tagfs.vsix",
+    "vscode:package:dev": "vsce package --pre-release -o tagfs.vsix",
+    "vscode:publish": "vsce publish",
+    "vscode:publish:dev": "vsce publish --pre-release"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.4.2"
+  }
 }
