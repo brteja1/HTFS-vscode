@@ -215,7 +215,128 @@ async function tagfsEditFileTags() {
     }
 }
 
-// --- Registration ---
+// -- Webview for showing tags ---
+async function showTagsWebviewPanel() {
+    const workspaceFolder = getWorkspaceFolder();
+    if (!workspaceFolder) {
+        showError('No workspace folder found.');
+        return;
+    }
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+        showError('No active editor found.');
+        return;
+    }
+    const filePath = editor.document.fileName;
+    const relativeFilePath = getRelativeFilePath(filePath, workspaceFolder);
+
+    let tags = [];
+    try {
+        const stdout = await execPromise(`tagfs getresourcetags ${relativeFilePath}`, { cwd: workspaceFolder });
+        tags = stdout.split('\n').filter(tag => tag.trim() !== '');
+    } catch (error) {
+        tags = ['(Error fetching tags)'];
+    }
+
+    const panel = vscode.window.createWebviewPanel(
+        'tagfsTagsPanel',
+        `Tags: ${editor.document.fileName.split(/[\\/]/).pop()}`,
+        vscode.ViewColumn.Beside,
+        {}
+    );
+
+    panel.webview.html = getTagsPanelHtml(tags, editor.document.fileName);
+}
+
+function getTagsPanelHtml(tags, filename) {
+    return `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body { font-family: sans-serif; padding: 1em; }
+                h2 { margin-top: 0; }
+                ul { padding-left: 1.2em; }
+                .tag { background: #eee; border-radius: 4px; padding: 2px 8px; margin: 2px; display: inline-block; }
+            </style>
+        </head>
+        <body>
+            <h2>Tags for <code>${filename.split(/[\\/]/).pop()}</code></h2>
+            <ul>
+                ${tags.length ? tags.map(tag => `<li class="tag">${tag}</li>`).join('') : '<li>No tags</li>'}
+            </ul>
+        </body>
+        </html>
+    `;
+}
+
+
+
+
+// --- Tag decoration setup ---
+const tagDecorationType = vscode.window.createTextEditorDecorationType({
+    after: {
+        color: new vscode.ThemeColor('descriptionForeground'),
+        margin: '0 0 0 1em',
+    },
+    isWholeLine: true,
+    rangeBehavior: vscode.DecorationRangeBehavior.ClosedOpen
+});
+
+async function updateTagDecorations(editor) {
+    if (!editor) return;
+    const workspaceFolder = getWorkspaceFolder();
+    if (!workspaceFolder) return;
+    const relativeFilePath = getRelativeFilePath(editor.document.fileName, workspaceFolder);
+    try {
+        const stdout = await execPromise(`tagfs getresourcetags ${relativeFilePath}`, { cwd: workspaceFolder });
+        const tags = stdout.split('\n').filter(tag => tag.trim() !== '');
+        if (tags.length === 0) {
+            editor.setDecorations(tagDecorationType, []);
+            return;
+        }
+        const decoration = {
+            range: new vscode.Range(0, 0, 0, 0),
+            renderOptions: {
+                after: {
+                    contentText: `Tags: ${tags.join(', ')}`
+                }
+            }
+        };
+        editor.setDecorations(tagDecorationType, [decoration]);
+    } catch {
+        editor.setDecorations(tagDecorationType, []);
+    }
+}
+
+// --- CodeLens ---
+
+class TagFsCodeLensProvider {
+    async provideCodeLenses(document, token) {
+        const workspaceFolder = getWorkspaceFolder();
+        if (!workspaceFolder) return [];
+        const relativeFilePath = getRelativeFilePath(document.fileName, workspaceFolder);
+        try {
+            const stdout = await execPromise(`tagfs getresourcetags ${relativeFilePath}`, { cwd: workspaceFolder });
+            const tags = stdout.split('\n').filter(tag => tag.trim() !== '');
+            if (tags.length === 0) return [];
+            return [
+                new vscode.CodeLens(
+                    new vscode.Range(0, 0, 0, 0),
+                    {
+                        title: `Tags: ${tags.join(', ')}`,
+                        command: ''
+                    }
+                )
+            ];
+        } catch {
+            return [];
+        }
+    }
+}
+
+// --- Commands Registration ---
 
 function registerCommands(context) {
     context.subscriptions.push(
@@ -224,7 +345,7 @@ function registerCommands(context) {
         vscode.commands.registerCommand('tagfs.addtag', tagfsAddTag),
         vscode.commands.registerCommand('tagfs.searchbytag', tagfsSearchByTag),
         vscode.commands.registerCommand('tagfs.editfiletags', tagfsEditFileTags),
-        vscode.commands.registerCommand('tagfs.showfiletags', tagfsGetTagsForFile)
+        vscode.commands.registerCommand('tagfs.showfiletags', tagfsGetTagsForFile),
     );
 }
 
@@ -233,14 +354,39 @@ function registerCommands(context) {
  */
 function activate(context) {
     console.log('Congratulations, your extension "tagfs" is now active!');
-    exec('tagfs help', (err, stdout, stderr) => {
-        if (err) {
-            showError(stderr || err.message);
+
+    // Create status bar item
+    const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+    statusBarItem.text = 'TagFS: Loading...';
+    statusBarItem.show();
+    context.subscriptions.push(statusBarItem);
+
+    // Update status bar with tag count
+    async function updateTagCount() {
+        const workspaceFolder = getWorkspaceFolder();
+        if (!workspaceFolder) {
+            statusBarItem.text = 'TagFS: Not Initialized';
             return;
         }
-        vscode.window.showInformationMessage(`TagFS version: 1.0.0`);
-    });
+        try {
+            const tags = await fetchTags(workspaceFolder);
+            statusBarItem.text = `TagFS: ${tags.length} tags`;
+        } catch (error) {
+            statusBarItem.text = 'TagFS: Error';
+        }
+    }
+
+    updateTagCount();
+
     registerCommands(context);
+
+
+    // Update on active editor change
+    vscode.window.onDidChangeActiveTextEditor(updateTagCount, null, context.subscriptions);
+
+    context.subscriptions.push(
+        vscode.languages.registerCodeLensProvider({ scheme: 'file' }, new TagFsCodeLensProvider())
+    );
 }
 
 function deactivate() {}
