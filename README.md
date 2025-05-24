@@ -19,5 +19,5 @@ This extension provides basic integration with TagFS, allowing you to run TagFS 
 
 - Place this folder in your VS Code extensions directory or open it directly in VS Code and press `F5` to launch an Extension Development Host.
 
-## Acknolwedgments
+## Acknowledgments
 I have to acknowledge that GitHub Copilot has churned out 90% of the code base after I provided the requirements. It's amazing to see how far LLMs have improved.
