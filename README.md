@@ -13,7 +13,7 @@ This extension provides basic integration with TagFS, allowing you to run TagFS 
 ## Usage
 
 1. Open the Command Palette (`Ctrl+Shift+P`).
-2. Run `TagFS: Hello World`.
+2. Run `TagFS: Intialize`.
 
 ## Development
 
