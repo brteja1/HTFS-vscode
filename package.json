@@ -1,8 +1,8 @@
 {
-  "name": "tagfs-vscode",
-  "displayName": "TagFS Integration",
-  "description": "VS Code extension to interact with TagFS for hierarchical file tagging.",
-  "version": "0.1.0",
+  "name": "htfs-vscode",
+  "displayName": "HTFS VSCode Integration",
+  "description": "VS Code extension to interact with HTFS for hierarchical file tagging.",
+  "version": "0.1.1",
   "publisher": "NGCIndia",
   "engines": {
     "vscode": "^1.70.0"
@@ -18,7 +18,7 @@
   "contributes": {
     "configuration": {
       "type": "object",
-      "title": "TagFS",
+      "title": "HTFS",
       "properties": {
         "tagfs.path": {
           "type": "string",
@@ -31,38 +31,38 @@
       {
         "command": "tagfs.init",
         "title": "Initialize",
-        "category": "TagFS"
+        "category": "HTFS"
       },
       {
         "command": "tagfs.listtags",
         "title": "Show All Tags",
-        "category": "TagFS"
+        "category": "HTFS"
       },
       {
         "command": "tagfs.addtag",
         "title": "Add New Tag",
-        "category": "TagFS"
+        "category": "HTFS"
       },
       {
         "command": "tagfs.editfiletags",
         "title": "Add/Remove Tags to File",
-        "category": "TagFS"
+        "category": "HTFS"
       },
       {
         "command": "tagfs.searchbytag",
         "title": "Search for Files with Tags",
-        "category": "TagFS"
+        "category": "HTFS"
       },
       {
         "command": "tagfs.showfiletags",
         "title": "Show Tags for File",
-        "category": "TagFS"
+        "category": "HTFS"
       }
       ,
       {
         "command": "tagfs.setPath",
-        "title": "Set TagFS Path",
-        "category": "TagFS"
+        "title": "Set tagfs path",
+        "category": "HTFS"
       }
     ]
   },
@@ -70,8 +70,8 @@
     "Other"
   ],
   "scripts": {
-    "vscode:package": "vsce package -o tagfs.vsix",
-    "vscode:package:dev": "vsce package --pre-release -o tagfs.vsix",
+    "vscode:package": "vsce package -o htfs.vsix",
+    "vscode:package:dev": "vsce package --pre-release -o htfs.vsix",
     "vscode:publish": "vsce publish",
     "vscode:publish:dev": "vsce publish --pre-release"
   },

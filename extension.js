@@ -26,18 +26,18 @@ async function updateTagCount() {
     const cfg = vscode.workspace.getConfiguration('tagfs');
     const configured = cfg.get('path');
     if (!configured || typeof configured !== 'string' || configured.trim() === '') {
-        statusBarItem.text = 'TagFS: Not Configured';
+        statusBarItem.text = 'HTFS: Not Configured';
         return;
     }
     if (!workspaceFolder) {
-        statusBarItem.text = 'TagFS: Not Initialized';
+        statusBarItem.text = 'HTFS: Not Initialized';
         return;
     }
     try {
         const tags = await fetchTags(workspaceFolder);
-        statusBarItem.text = `TagFS: ${tags.length} tags`;
+        statusBarItem.text = `HTFS: ${tags.length} tags`;
     } catch (error) {
-        statusBarItem.text = 'TagFS: Error';
+        statusBarItem.text = 'HTFS: Error';
     }
 }
 
@@ -56,7 +56,7 @@ function execPromise(command, options = {}) {
                 tagfsExecutable = configured.trim();
             }
         } catch (e) {
-            vscode.window.showErrorMessage(`TagFS configuration error: ${e.message || e}`);
+            vscode.window.showErrorMessage(`HTFS configuration error: ${e.message || e}`);
         }
 
         const customDir = tagfsExecutable ? path.dirname(tagfsExecutable) : '/linuxdev/github/HTFS/';
@@ -70,7 +70,7 @@ function execPromise(command, options = {}) {
 }
 
 function showError(message) {
-    vscode.window.showErrorMessage(`TagFS error: ${message}`);
+    vscode.window.showErrorMessage(`HTFS error: ${message}`);
 }
 
 async function getWorkspaceOrShowError() {
@@ -346,7 +346,7 @@ async function updateTagDecorations(editor) {
             range: new vscode.Range(0, 0, 0, 0),
             renderOptions: {
                 after: {
-                    contentText: `Tags: ${tags.join(', ')}`
+                    contentText: `🏷️ ${tags.join(', ')}`
                 }
             }
         };
@@ -371,7 +371,7 @@ class TagFsCodeLensProvider {
                 new vscode.CodeLens(
                     new vscode.Range(0, 0, 0, 0),
                     {
-                        title: `Tags: ${tags.join(', ')}`,
+                        title: `🏷️ ${tags.join(', ')}`,
                         command: ''
                     }
                 )
@@ -408,7 +408,7 @@ function registerConfigCommand(context) {
             if (!input) return;
             try {
                 await cfg.update('path', input.trim(), vscode.ConfigurationTarget.Workspace);
-                vscode.window.showInformationMessage('TagFS path saved. Reloading extension features...');
+                vscode.window.showInformationMessage('HTFS path saved. Reloading extension features...');
                 // After setting, attempt to initialize features
                 tryInitFeatures(context);
             } catch (e) {
@@ -442,7 +442,7 @@ async function tryInitFeatures(context) {
                 const before = line.substring(0, position.character);
 
                 // Debug: log what the provider sees
-                console.log(`[tagfs] provideCompletionItems before='${before}'`);
+                //console.log(`[tagfs] provideCompletionItems before='${before}'`);
 
                 // Only show after double-hash
                 if (!before.endsWith('##')) return [];
@@ -480,7 +480,7 @@ async function tryInitFeatures(context) {
                     return new vscode.CompletionList([placeholder], false);
                 }
 
-                console.log(`[tagfs] returning ${items.length} completion items`);
+                //console.log(`[tagfs] returning ${items.length} completion items`);
                 return new vscode.CompletionList(items, false);
             }
         },
@@ -499,7 +499,7 @@ async function tryInitFeatures(context) {
             const relativeFilePath = getRelativeFilePath(editor.document.fileName, workspaceFolder);
             try {
                 await tagFileWithTag(workspaceFolder, relativeFilePath, tagName);
-                updateTagDecorations(editor);
+                //updateTagDecorations(editor);
                 await updateTagCount();
             } catch (e) {
                 // errors already handled by helpers
@@ -515,11 +515,11 @@ async function tryInitFeatures(context) {
     );
 
     // Re-create any UI that depends on tagfs
-    try {
-        // Update status quickly
-        const editor = vscode.window.activeTextEditor;
-        if (editor) await updateTagDecorations(editor);
-    } catch {}
+    //try {
+    //    // Update status quickly
+    //    const editor = vscode.window.activeTextEditor;
+    //    if (editor) await updateTagDecorations(editor);
+    //} catch {}
 }
 
 /**
@@ -530,7 +530,7 @@ function activate(context) {
 
     // Create status bar item
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-    statusBarItem.text = 'TagFS: Loading...';
+    statusBarItem.text = 'HTFS: Loading...';
     statusBarItem.show();
     context.subscriptions.push(statusBarItem);
 
