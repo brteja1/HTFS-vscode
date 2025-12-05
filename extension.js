@@ -1,5 +1,6 @@
 const vscode = require('vscode');
 const { exec } = require('child_process');
+const path = require('path');
 
 // --- Helpers ---
 
@@ -14,9 +15,54 @@ function getRelativeFilePath(filePath, workspaceFolder) {
     return `.${relativeFilePath}`;
 }
 
+let tagfsExecutable = null;
+let extensionInitialized = false;
+let statusBarItem = null;
+
+// Update status bar with tag count (module-level so features can call it)
+async function updateTagCount() {
+    const workspaceFolder = getWorkspaceFolder();
+    if (!statusBarItem) return;
+    const cfg = vscode.workspace.getConfiguration('tagfs');
+    const configured = cfg.get('path');
+    if (!configured || typeof configured !== 'string' || configured.trim() === '') {
+        statusBarItem.text = 'TagFS: Not Configured';
+        return;
+    }
+    if (!workspaceFolder) {
+        statusBarItem.text = 'TagFS: Not Initialized';
+        return;
+    }
+    try {
+        const tags = await fetchTags(workspaceFolder);
+        statusBarItem.text = `TagFS: ${tags.length} tags`;
+    } catch (error) {
+        statusBarItem.text = 'TagFS: Error';
+    }
+}
+
 function execPromise(command, options = {}) {
     return new Promise((resolve, reject) => {
-        exec(command, options, (err, stdout, stderr) => {
+        const execOptions = { ...options };
+
+        // Use login shell on Unix so user PATH is loaded
+        if (process.platform === 'win32') execOptions.shell = 'cmd.exe';
+        else execOptions.shell = '/usr/bin/bash';
+
+        try {
+            const cfg = vscode.workspace.getConfiguration('tagfs');
+            const configured = cfg.get('path');
+            if (configured && typeof configured === 'string' && configured.trim() !== '') {
+                tagfsExecutable = configured.trim();
+            }
+        } catch (e) {
+            vscode.window.showErrorMessage(`TagFS configuration error: ${e.message || e}`);
+        }
+
+        const customDir = tagfsExecutable ? path.dirname(tagfsExecutable) : '/linuxdev/github/HTFS/';
+        execOptions.env = { ...process.env, PATH: `${customDir}:${process.env.PATH}` };
+
+        exec(command, execOptions, (err, stdout, stderr) => {
             if (err) reject(stderr || err.message);
             else resolve(stdout);
         });
@@ -349,37 +395,117 @@ function registerCommands(context) {
     );
 }
 
-/**
- * @param {vscode.ExtensionContext} context
- */
-function activate(context) {
-    console.log('Congratulations, your extension "tagfs" is now active!');
+// Register the configuration command separately (always available)
+function registerConfigCommand(context) {
+    context.subscriptions.push(
+        vscode.commands.registerCommand('tagfs.setPath', async () => {
+            const cfg = vscode.workspace.getConfiguration('tagfs');
+            const current = cfg.get('path') || '';
+            const input = await vscode.window.showInputBox({
+                prompt: 'Enter full path to tagfs executable',
+                value: current
+            });
+            if (!input) return;
+            try {
+                await cfg.update('path', input.trim(), vscode.ConfigurationTarget.Workspace);
+                vscode.window.showInformationMessage('TagFS path saved. Reloading extension features...');
+                // After setting, attempt to initialize features
+                tryInitFeatures(context);
+            } catch (e) {
+                showError(e.message || e);
+            }
+        })
+    );
+}
 
-    // Create status bar item
-    const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-    statusBarItem.text = 'TagFS: Loading...';
-    statusBarItem.show();
-    context.subscriptions.push(statusBarItem);
-
-    // Update status bar with tag count
-    async function updateTagCount() {
-        const workspaceFolder = getWorkspaceFolder();
-        if (!workspaceFolder) {
-            statusBarItem.text = 'TagFS: Not Initialized';
-            return;
-        }
-        try {
-            const tags = await fetchTags(workspaceFolder);
-            statusBarItem.text = `TagFS: ${tags.length} tags`;
-        } catch (error) {
-            statusBarItem.text = 'TagFS: Error';
-        }
+async function tryInitFeatures(context) {
+    if (extensionInitialized) return;
+    const cfg = vscode.workspace.getConfiguration('tagfs');
+    const configured = cfg.get('path');
+    if (!configured || typeof configured !== 'string' || configured.trim() === '') {
+        // not configured yet
+        return;
     }
+    tagfsExecutable = configured.trim();
+    // safe-guard: mark initialized before registering to avoid dupes
+    extensionInitialized = true;
 
-    updateTagCount();
-
+    // Register the rest of commands and providers
     registerCommands(context);
 
+    // Register completion provider and related command only after configuration provided
+    const completionProvider = vscode.languages.registerCompletionItemProvider(
+        { scheme: 'file', language: '*' },
+        {
+            async provideCompletionItems(document, position) {
+                const line = document.lineAt(position).text;
+                const before = line.substring(0, position.character);
+
+                // Debug: log what the provider sees
+                console.log(`[tagfs] provideCompletionItems before='${before}'`);
+
+                // Only show after double-hash
+                if (!before.endsWith('##')) return [];
+
+                const workspaceFolder = getWorkspaceFolder();
+                if (!workspaceFolder) return [];
+
+                let tags = [];
+                try {
+                    tags = await fetchTags(workspaceFolder);
+                } catch (e) {
+                    console.error('[tagfs] Error fetching tags:', e);
+                    tags = [];
+                }
+
+                // Create range to replace the '##' we just typed
+                const startPos = position.translate(0, -2);
+                const range = new vscode.Range(startPos, position);
+
+                const items = tags.map(tag => {
+                    const item = new vscode.CompletionItem(tag, vscode.CompletionItemKind.Text);
+                    // Insert '##tag' replacing the '##'
+                    item.insertText = tag;
+                    item.filterText = `##${tag}`;
+                    item.range = range;
+                    item.command = { command: 'tagfs.applyTagFromCompletion', title: 'Apply Tag', arguments: [tag] };
+                    return item;
+                });
+
+                // If no tags available, provide a helpful placeholder so popup appears for debugging
+                if (items.length === 0) {
+                    const placeholder = new vscode.CompletionItem('(no tags found)', vscode.CompletionItemKind.Text);
+                    placeholder.insertText = '##';
+                    placeholder.range = range;
+                    return new vscode.CompletionList([placeholder], false);
+                }
+
+                console.log(`[tagfs] returning ${items.length} completion items`);
+                return new vscode.CompletionList(items, false);
+            }
+        },
+        '#', '#'
+    );
+
+    context.subscriptions.push(completionProvider);
+
+    // Command triggered after a completion is accepted to tag the current file
+    context.subscriptions.push(
+        vscode.commands.registerCommand('tagfs.applyTagFromCompletion', async (tagName) => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) return;
+            const workspaceFolder = getWorkspaceFolder();
+            if (!workspaceFolder) return;
+            const relativeFilePath = getRelativeFilePath(editor.document.fileName, workspaceFolder);
+            try {
+                await tagFileWithTag(workspaceFolder, relativeFilePath, tagName);
+                updateTagDecorations(editor);
+                await updateTagCount();
+            } catch (e) {
+                // errors already handled by helpers
+            }
+        })
+    );
 
     // Update on active editor change
     vscode.window.onDidChangeActiveTextEditor(updateTagCount, null, context.subscriptions);
@@ -387,6 +513,36 @@ function activate(context) {
     context.subscriptions.push(
         vscode.languages.registerCodeLensProvider({ scheme: 'file' }, new TagFsCodeLensProvider())
     );
+
+    // Re-create any UI that depends on tagfs
+    try {
+        // Update status quickly
+        const editor = vscode.window.activeTextEditor;
+        if (editor) await updateTagDecorations(editor);
+    } catch {}
+}
+
+/**
+ * @param {vscode.ExtensionContext} context
+ */
+function activate(context) {
+    console.log('Congratulations, your extension "tagfs" is now active!');
+
+    // Create status bar item
+    statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+    statusBarItem.text = 'TagFS: Loading...';
+    statusBarItem.show();
+    context.subscriptions.push(statusBarItem);
+
+    // Don't enable features until user provides `tagfs.path` in settings.
+    // Register only the configuration command so user can set the path.
+    registerConfigCommand(context);
+
+    // Attempt to initialize features now if configuration exists
+    tryInitFeatures(context);
+
+    // Update initial status
+    updateTagCount();
 }
 
 function deactivate() {}

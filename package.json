@@ -2,7 +2,8 @@
   "name": "tagfs-vscode",
   "displayName": "TagFS Integration",
   "description": "VS Code extension to interact with TagFS for hierarchical file tagging.",
-  "version": "0.0.1",
+  "version": "0.1.0",
+  "publisher": "NGCIndia",
   "engines": {
     "vscode": "^1.70.0"
   },
@@ -11,15 +12,21 @@
     "url": "https://github.com/brteja1/HTFS-vscode.git"
   },
   "activationEvents": [
-    "onCommand:tagfs.init",
-    "onCommand:tagfs.listtags",
-    "onCommand:tagfs.addtag",
-    "onCommand:tagfs.editfiletags",
-    "onCommand:tagfs.searchbytag",
-    "onCommand:tagfs.showfiletags"
+    "onStartupFinished"
   ],
   "main": "./extension.js",
   "contributes": {
+    "configuration": {
+      "type": "object",
+      "title": "TagFS",
+      "properties": {
+        "tagfs.path": {
+          "type": "string",
+          "default": "",
+          "description": "Full path to the `tagfs` executable. Example: /usr/local/bin/tagfs"
+        }
+      }
+    },
     "commands": [
       {
         "command": "tagfs.init",
@@ -51,6 +58,12 @@
         "title": "Show Tags for File",
         "category": "TagFS"
       }
+      ,
+      {
+        "command": "tagfs.setPath",
+        "title": "Set TagFS Path",
+        "category": "TagFS"
+      }
     ]
   },
   "categories": [
@@ -64,5 +77,8 @@
   },
   "devDependencies": {
     "@vscode/vsce": "^3.4.2"
+  },
+  "dependencies": {
+    "vsce": "^1.97.0"
   }
 }
