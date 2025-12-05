@@ -346,7 +346,7 @@ async function updateTagDecorations(editor) {
             range: new vscode.Range(0, 0, 0, 0),
             renderOptions: {
                 after: {
-                    contentText: `🏷️ ${tags.join(', ')}`
+                    contentText: `🏷: ${tags.join(', ')}`
                 }
             }
         };
@@ -371,7 +371,7 @@ class TagFsCodeLensProvider {
                 new vscode.CodeLens(
                     new vscode.Range(0, 0, 0, 0),
                     {
-                        title: `🏷️ ${tags.join(', ')}`,
+                        title: `🏷: ${tags.join(', ')}`,
                         command: ''
                     }
                 )
