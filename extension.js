@@ -184,8 +184,33 @@ async function tagFileWithTag(workspaceFolder, relativeFilePath, tagName) {
         await execPromise(`tagfs addresource ${relativeFilePath}`, { cwd: workspaceFolder });
         await execPromise(`tagfs tagresource ${relativeFilePath} ${tagName}`, { cwd: workspaceFolder });
         showInfo(`Tagged file: ${relativeFilePath} with tag: ${tagName}`);
+        try { await _refreshAfterTagChange(workspaceFolder, relativeFilePath); } catch (e) {}
     } catch (error) {
         showError(error);
+    }
+}
+
+/**
+ * Simple debounce helper
+ */
+function debounce(fn, ms = 300) {
+    let timer = null;
+    return function (...args) {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => fn.apply(this, args), ms);
+    };
+}
+
+// Refresh UI after tagging
+async function _refreshAfterTagChange(workspaceFolder, relativeFilePath) {
+    try {
+        await updateTagCount();
+    } catch (e) {
+        // ignore
+    }
+    const editor = vscode.window.activeTextEditor;
+    if (editor && getRelativeFilePath(editor.document.fileName, workspaceFolder) === relativeFilePath) {
+        try { await updateTagDecorations(editor); } catch (e) { /* ignore */ }
     }
 }
 
@@ -196,6 +221,7 @@ async function untagFileWithTag(workspaceFolder, relativeFilePath, tagName) {
     try {
         await execPromise(`tagfs untagresource ${relativeFilePath} ${tagName}`, { cwd: workspaceFolder });
         showInfo(`Removed tag: ${tagName} from file: ${relativeFilePath}`);
+        try { await _refreshAfterTagChange(workspaceFolder, relativeFilePath); } catch (e) {}
     } catch (error) {
         showError(error);
     }
@@ -521,20 +547,23 @@ function getTagsPanelHtml(tags, filename) {
 // DECORATIONS & CODELENS
 // ============================================================================
 
-const tagDecorationType = vscode.window.createTextEditorDecorationType({
-    after: {
-        color: new vscode.ThemeColor('descriptionForeground'),
-        margin: '0 0 0 1em',
-    },
-    isWholeLine: true,
-    rangeBehavior: vscode.DecorationRangeBehavior.ClosedOpen
+const tagUnderlineDecorationType = vscode.window.createTextEditorDecorationType({
+    textDecoration: 'underline',
+    rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed
 });
 
 /**
- * Update inline decorations showing tags for the current editor
+ * Escape string for use in RegExp
+ */
+function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
+}
+
+/**
+ * Update inline underline decorations for every tag occurrence in the document
  */
 async function updateTagDecorations(editor) {
-    if (!editor) return;
+    if (!editor || !editor.document) return;
 
     const workspaceFolder = getWorkspaceFolder();
     if (!workspaceFolder) return;
@@ -543,23 +572,37 @@ async function updateTagDecorations(editor) {
 
     try {
         const tags = await getFileTags(workspaceFolder, relativeFilePath);
-        if (tags.length === 0) {
-            editor.setDecorations(tagDecorationType, []);
+        if (!tags || tags.length === 0) {
+            editor.setDecorations(tagUnderlineDecorationType, []);
             return;
         }
 
-        const decoration = {
-            range: new vscode.Range(0, 0, 0, 0),
-            renderOptions: {
-                after: {
-                    contentText: `${TAG_DECORATION_EMOJI}: ${tags.join(', ')}`
-                }
-            }
-        };
+        const docText = editor.document.getText();
+        const decorations = [];
 
-        editor.setDecorations(tagDecorationType, [decoration]);
-    } catch {
-        editor.setDecorations(tagDecorationType, []);
+        // For each tag, find every occurrence and add an underline decoration with hover
+        for (const tag of tags) {
+            if (!tag || typeof tag !== 'string') continue;
+            const esc = escapeRegExp(tag);
+            const re = new RegExp(esc, 'g');
+            let match;
+            while ((match = re.exec(docText)) !== null) {
+                const startOffset = match.index;
+                const endOffset = startOffset + match[0].length;
+                const startPos = editor.document.positionAt(startOffset);
+                const endPos = editor.document.positionAt(endOffset);
+                const range = new vscode.Range(startPos, endPos);
+
+                decorations.push({
+                    range,
+                    hoverMessage: `Tag: ${tag}`
+                });
+            }
+        }
+
+        editor.setDecorations(tagUnderlineDecorationType, decorations);
+    } catch (e) {
+        editor.setDecorations(tagUnderlineDecorationType, []);
     }
 }
 
@@ -724,8 +767,26 @@ function registerTagCompletionCommand(context) {
  * Register event listeners for editor changes
  */
 function registerEventListeners(context) {
+    // Refresh decorations and status when active editor changes
     context.subscriptions.push(
-        vscode.window.onDidChangeActiveTextEditor(updateTagCount),
+        vscode.window.onDidChangeActiveTextEditor(async (editor) => {
+            try { await updateTagCount(); } catch (e) {}
+            try { await updateTagDecorations(editor); } catch (e) {}
+        })
+    );
+
+    // Debounced document change -> refresh decorations for active editor
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeTextDocument(debounce((e) => {
+            const editor = vscode.window.activeTextEditor;
+            if (editor && e.document === editor.document) {
+                try { updateTagDecorations(editor); } catch (e) {}
+            }
+        }, 300))
+    );
+
+    // CodeLens provider
+    context.subscriptions.push(
         vscode.languages.registerCodeLensProvider({ scheme: 'file' }, new TagFsCodeLensProvider())
     );
 }
@@ -778,6 +839,11 @@ function activate(context) {
 
     // Update status bar
     updateTagCount();
+    // Initial decorations for active editor
+    try {
+        const editor = vscode.window.activeTextEditor;
+        if (editor) updateTagDecorations(editor);
+    } catch (e) {}
 }
 
 /**
