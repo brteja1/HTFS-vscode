@@ -306,6 +306,42 @@ async function tagfsSearchByTag() {
     }
 }
 
+/**
+ * Link one tag to another tag as a parent
+ */
+async function tagfsLinkTags() {
+    const workspaceFolder = await getWorkspaceOrShowError();
+    if (!workspaceFolder) return;
+
+    try {
+        const tags = await fetchTags(workspaceFolder);
+        if (tags.length === 0) {
+            showInfo('No tags available to link.');
+            return;
+        }
+
+        // Select the child tag
+        const childTag = await vscode.window.showQuickPick(
+            tags,
+            { placeHolder: 'Select child tag' }
+        );
+        if (!childTag) return;
+
+        // Select the parent tag
+        const parentTag = await vscode.window.showQuickPick(
+            tags.filter(tag => tag !== childTag),
+            { placeHolder: 'Select parent tag' }
+        );
+        if (!parentTag) return;
+
+        // Link the tags
+        const stdout = await execPromise(`tagfs linktags ${childTag} ${parentTag}`, { cwd: workspaceFolder });
+        showInfo(`Linked tag '${childTag}' to parent tag '${parentTag}'`);
+    } catch (error) {
+        showError(error);
+    }
+}
+
 // ============================================================================
 // FILE/EDITOR COMMANDS
 // ============================================================================
@@ -545,7 +581,7 @@ class TagFsCodeLensProvider {
                 new vscode.CodeLens(
                     new vscode.Range(0, 0, 0, 0),
                     {
-                        title: `${TAG_DECORATION_EMOJI}: ${tags.join(', ')}`,
+                        title: `${TAG_DECORATION_EMOJI}: \{ ${tags.join(', ')} \}`,
                         command: ''
                     }
                 )
@@ -569,6 +605,7 @@ function registerCommands(context) {
         vscode.commands.registerCommand('tagfs.listtags', tagfsListTags),
         vscode.commands.registerCommand('tagfs.addtag', tagfsAddTag),
         vscode.commands.registerCommand('tagfs.searchbytag', tagfsSearchByTag),
+        vscode.commands.registerCommand('tagfs.linktags', tagfsLinkTags),
         vscode.commands.registerCommand('tagfs.editfiletags', tagfsEditFileTags),
         vscode.commands.registerCommand('tagfs.showfiletags', tagfsGetTagsForFile),
     );

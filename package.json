@@ -54,11 +54,15 @@
         "category": "HTFS"
       },
       {
+        "command": "tagfs.linktags",
+        "title": "Link Tags",
+        "category": "HTFS"
+      },
+      {
         "command": "tagfs.showfiletags",
         "title": "Show Tags for File",
         "category": "HTFS"
-      }
-      ,
+      },
       {
         "command": "tagfs.setPath",
         "title": "Set tagfs path",
