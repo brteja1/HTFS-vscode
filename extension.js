@@ -827,6 +827,34 @@ function registerEventListeners(context) {
     context.subscriptions.push(
         vscode.languages.registerCodeLensProvider({ scheme: 'file' }, new TagFsCodeLensProvider())
     );
+
+    // Disabling this since tagfs mvresource does not have a way to
+    // not modify the file on filesystem. If we do not fix this
+    // this will cause vscode to hang on renames.
+    /*
+    vscode.workspace.onDidRenameFiles(async (event) => {
+        for (const file of event.files) {
+            const oldPath = file.oldUri.fsPath;
+            const newPath = file.newUri.fsPath;
+
+            // TODO: update your DB here
+            await updateTagDatabaseOnRename(oldPath, newPath);
+        }}
+    );
+    */   
+}
+
+/**
+ * Function to update tag database on file rename
+ */
+async function updateTagDatabaseOnRename(oldPath, newPath) {
+    try {
+        // Example: call your CLI / internal DB update function
+        const output = await execPromise(`tagfs mvresource ${oldPath} ${newPath}`);
+        showInfo(output);
+    } catch (err) {
+        vscode.window.showErrorMessage("Failed to update tag DB: " + err.message);
+    }
 }
 
 /**
