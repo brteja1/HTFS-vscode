@@ -595,7 +595,14 @@ async function updateTagDecorations(editor) {
 
                 decorations.push({
                     range,
-                    hoverMessage: `Tag: ${tag}`
+                    hoverMessage: `Tag: ${tag}`,
+                    renderOptions: {
+                        before: {
+                            contentText: '#',
+                            margin: '0 0.0em 0 0',
+                            color: new vscode.ThemeColor('descriptionForeground')
+                        }
+                    }
                 });
             }
         }
