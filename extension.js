@@ -21,6 +21,7 @@ const STATUS_MESSAGES = {
     LOADING: 'HTFS: Loading...',
 };
 
+const TAG_MARKER = '#'
 const COMPLETION_TRIGGER = '##';
 const TAG_DECORATION_EMOJI = '🏷';
 
@@ -313,15 +314,29 @@ async function tagfsAddTag() {
 /**
  * Search for files by tag expression
  */
-async function tagfsSearchByTag() {
+async function tagfsSearchByTag(optionalTagExpr) {
     const workspaceFolder = await getWorkspaceOrShowError();
     if (!workspaceFolder) return;
-    const tagExpr = await vscode.window.showInputBox({ prompt: 'Enter tag expression (e.g., "tag1 tag2")' });
+
+    // If caller passes argument → use it; else → prompt the user
+    const tagExpr =
+        optionalTagExpr ||
+        await vscode.window.showInputBox({
+            prompt: 'Enter tag expression (e.g., "tag1 & ~tag2")'
+        });
+
     if (!tagExpr) return;
+
     try {
-        const stdout = await execPromise(`tagfs lsresources ${tagExpr}`, { cwd: workspaceFolder });
+        const stdout = await execPromise(`tagfs lsresources ${tagExpr}`, {
+            cwd: workspaceFolder
+        });
+
         const files = parseOutputLines(stdout);
-        const selectedFile = await vscode.window.showQuickPick(files, { placeHolder: 'Select a file' });
+        const selectedFile = await vscode.window.showQuickPick(files, {
+            placeHolder: 'Select a file'
+        });
+
         if (selectedFile) {
             const cleanFile = selectedFile.replace(/\r?\n|\r/g, '');
             const doc = await vscode.workspace.openTextDocument(cleanFile);
@@ -331,6 +346,7 @@ async function tagfsSearchByTag() {
         showError(error);
     }
 }
+
 
 /**
  * Link one tag to another tag as a parent
@@ -342,7 +358,7 @@ async function tagfsLinkTags() {
     try {
         const tags = await fetchTags(workspaceFolder);
         if (tags.length === 0) {
-            showInfo('No tags available to link.');
+            showInfo('No tags avakilable to link.');
             return;
         }
 
@@ -593,19 +609,32 @@ async function updateTagDecorations(editor) {
                 const endOffset = startOffset + match[0].length;
                 const startPos = editor.document.positionAt(startOffset);
                 const endPos = editor.document.positionAt(endOffset);
-                const range = new vscode.Range(startPos, endPos);
+                const range = new vscode.Range(startPos, endPos);                
 
-                decorations.push({
+                const searchCommandUri = vscode.Uri.parse(
+                   `command:tagfs.searchbytag?${
+                    encodeURIComponent(JSON.stringify([tag]))}`
+                );
+
+                const hoverString = new vscode.MarkdownString(                            
+                    `[Search files with ${TAG_MARKER}${tag} tag](${searchCommandUri})`
+                );                
+                hoverString.isTrusted = true;
+
+                const decoration = {
                     range,
-                    hoverMessage: `Tag: ${tag}`,
+                    hoverMessage: hoverString,
                     renderOptions: {
                         before: {
-                            contentText: '#',
+                            contentText: TAG_MARKER,
                             margin: '0 0.0em 0 0',
                             color: new vscode.ThemeColor('descriptionForeground')
                         }
-                    }
-                });
+                    },
+                    backgroundColor: new vscode.ThemeColor('editorHoverWidget.background')
+                };
+
+                decorations.push(decoration);                
             }
         }
 
