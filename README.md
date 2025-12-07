@@ -30,7 +30,7 @@ Decoration & completion notes
 
 
 License
-- See `LICENSE` in repository root.
+- See [LICENSE](https://github.com/brteja1/HTFS-vscode/blob/main/LICENSE) in repository root.
 
 Acknowledgments
 - This project was originally scaffolded with help from AI tools and iteratively refined.
