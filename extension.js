@@ -548,7 +548,9 @@ function getTagsPanelHtml(tags, filename) {
 // ============================================================================
 
 const tagUnderlineDecorationType = vscode.window.createTextEditorDecorationType({
-    textDecoration: 'underline',
+    // Add a small underline offset so the underline has some vertical padding
+    // `text-underline-offset` provides the visual padding beneath the text
+    textDecoration: 'underline; text-underline-offset: 3px',
     rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed
 });
 
