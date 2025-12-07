@@ -29,9 +29,6 @@ Decoration & completion notes
 - Inline decorations and a tags webview display file tags. The default decorations are configurable in code.
 
 
-Contributing
-- Bug reports and PRs welcome. If you add CLI functionality (e.g., `unlinktags`) I can wire it into the extension.
-
 License
 - See `LICENSE` in repository root.
 
