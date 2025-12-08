@@ -662,7 +662,7 @@ class TagFsCodeLensProvider {
                 new vscode.CodeLens(
                     new vscode.Range(0, 0, 0, 0),
                     {
-                        title: `${TAG_DECORATION_EMOJI}: \{ ${tags.join(', ')} \}`,
+                        title: `${TAG_DECORATION_EMOJI}: \{ #${tags.join(', #')} \}`,
                         command: ''
                     }
                 )
@@ -838,7 +838,27 @@ function registerEventListeners(context) {
             await updateTagDatabaseOnRename(oldPath, newPath);
         }}
     );
-    
+
+    vscode.workspace.onDidDeleteFiles(async (event) => {
+        for (const file of event.files) {
+            const deletedPath = file.fsPath;
+            
+            await updateTagDatabaseOnDelete(deletedPath);
+        }
+    });
+}
+
+/**
+ * Function to update tag database on file delete
+ */
+async function updateTagDatabaseOnDelete(deletedPath) {
+    try {
+        // Example: call your CLI / internal DB update function
+        const output = await execPromise(`tagfs rmresource ${deletedPath} false`, { cwd: getWorkspaceFolder() });
+        showInfo(output);
+    } catch (err) {
+        vscode.window.showErrorMessage("Failed to update tag DB: " + err.message);
+    }
 }
 
 /**
