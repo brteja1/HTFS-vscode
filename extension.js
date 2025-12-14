@@ -621,12 +621,14 @@ async function updateTagDecorations(editor) {
         // For each tag, find every occurrence and add an underline decoration with hover
         for (const tag of tags) {
             if (!tag || typeof tag !== 'string') continue;
-            const esc = escapeRegExp('[ ^$\n\t]' + tag + '[ $\n\t]');
+            const esc = '(?:^|[ \\n\\t])' + escapeRegExp(tag) + '(?:$|[ \\n\\t])';
             const re = new RegExp(esc, 'g');
             let match;
             while ((match = re.exec(docText)) !== null) {
-                const startOffset = match.index + 1;
-                const endOffset = startOffset + match[0].length - 2;
+                const fullMatch = match[0];
+                const tagStartInMatch = fullMatch.indexOf(tag);
+                const startOffset = match.index + tagStartInMatch;
+                const endOffset = startOffset + tag.length;
                 const startPos = editor.document.positionAt(startOffset);
                 const endPos = editor.document.positionAt(endOffset);
                 const range = new vscode.Range(startPos, endPos);                
