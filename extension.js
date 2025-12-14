@@ -866,6 +866,17 @@ function registerEventListeners(context) {
             await updateTagDatabaseOnDelete(deletedPath);
         }
     });
+
+    // Invalidate file tag cache when document is closed
+    context.subscriptions.push(
+        vscode.workspace.onDidCloseTextDocument((document) => {
+            const workspaceFolder = getWorkspaceFolder();
+            if (workspaceFolder) {
+                const relativePath = getRelativeFilePath(document.fileName, workspaceFolder);
+                cachedFileTags.delete(relativePath);
+            }
+        })
+    );
 }
 
 /**
