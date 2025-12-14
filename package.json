@@ -2,7 +2,7 @@
   "name": "htfs-vscode",
   "displayName": "HTFS VSCode Integration",
   "description": "VS Code extension to interact with HTFS for hierarchical file tagging.",
-  "version": "0.1.1",
+  "version": "1.1.0",
   "publisher": "NGCIndia",
   "engines": {
     "vscode": "^1.70.0"
