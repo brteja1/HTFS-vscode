@@ -127,6 +127,8 @@ function execPromise(command, options = {}) {
             const customDir = tagfsExecutable ? path.dirname(tagfsExecutable) : CONFIG.DEFAULT_FALLBACK_DIR;
             execOptions.env = { ...process.env, PATH: `${customDir}:${process.env.PATH}` };
 
+            console.log(command);
+            
             exec(command, execOptions, (err, stdout, stderr) => {
                 if (err) reject(stderr || err.message);
                 else resolve(stdout);
