@@ -61,7 +61,12 @@ function getRelativeFilePath(filePath, workspaceFolder) {
  * Parse multiline CLI output into array of trimmed non-empty strings
  */
 function parseOutputLines(output) {
-    return output.split('\n').filter(line => line.trim() !== '');
+    if (!output || typeof output !== 'string') return [];
+    // Normalize CRLF and LF, trim each line and remove empty lines
+    return output
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(line => line !== '');
 }
 
 /**
