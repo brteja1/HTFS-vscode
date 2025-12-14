@@ -32,6 +32,7 @@ const TAG_DECORATION_EMOJI = '🏷';
 let tagfsExecutable = null;
 let extensionInitialized = false;
 let statusBarItem = null;
+let cachedTags = null;
 
 // ============================================================================
 // UTILITY HELPERS
@@ -132,11 +133,13 @@ function execPromise(command, options = {}) {
 }
 
 /**
- * Fetch all tags from workspace
+ * Fetch all tags from workspace (with caching)
  */
 async function fetchTags(workspaceFolder) {
+    if (cachedTags) return cachedTags;
     const stdout = await execPromise('tagfs lstags', { cwd: workspaceFolder });
-    return parseOutputLines(stdout);
+    cachedTags = parseOutputLines(stdout);
+    return cachedTags;
 }
 
 // ============================================================================
@@ -306,6 +309,7 @@ async function tagfsAddTag() {
     try {
         const stdout = await execPromise(`tagfs addtags ${tagName}`, { cwd: workspaceFolder });
         showInfo(stdout);
+        cachedTags = null; // Invalidate cache
     } catch (error) {
         showError(error);
     }
@@ -447,6 +451,7 @@ async function handleAddTagToFile(workspaceFolder, relativeFilePath) {
             try {
                 const stdout = await execPromise(`tagfs addtags ${tagName}`, { cwd: workspaceFolder });
                 showInfo(stdout);
+                cachedTags = null; // Invalidate cache
             } catch (error) {
                 showError(error);
                 return;
