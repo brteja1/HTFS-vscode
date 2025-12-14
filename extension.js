@@ -33,6 +33,7 @@ let tagfsExecutable = null;
 let extensionInitialized = false;
 let statusBarItem = null;
 let cachedTags = null;
+let execQueue = Promise.resolve();
 
 // ============================================================================
 // UTILITY HELPERS
@@ -102,34 +103,38 @@ async function getActiveEditorOrShowError() {
  * Execute shell command with proper environment and platform configuration
  */
 function execPromise(command, options = {}) {
-    return new Promise((resolve, reject) => {
-        const execOptions = { ...options };
+    const result = execQueue.then(() => {
+        return new Promise((resolve, reject) => {
+            const execOptions = { ...options };
 
-        // Use login shell on Unix so user PATH is loaded
-        if (process.platform === 'win32') {
-            execOptions.shell = 'cmd.exe';
-        } else {
-            execOptions.shell = '/usr/bin/bash';
-        }
-
-        try {
-            const cfg = vscode.workspace.getConfiguration(CONFIG.NAMESPACE);
-            const configured = cfg.get(CONFIG.SETTING_PATH);
-            if (configured && typeof configured === 'string' && configured.trim() !== '') {
-                tagfsExecutable = configured.trim();
+            // Use login shell on Unix so user PATH is loaded
+            if (process.platform === 'win32') {
+                execOptions.shell = 'cmd.exe';
+            } else {
+                execOptions.shell = '/usr/bin/bash';
             }
-        } catch (e) {
-            showError(`Configuration error: ${e.message || e}`);
-        }
 
-        const customDir = tagfsExecutable ? path.dirname(tagfsExecutable) : CONFIG.DEFAULT_FALLBACK_DIR;
-        execOptions.env = { ...process.env, PATH: `${customDir}:${process.env.PATH}` };
+            try {
+                const cfg = vscode.workspace.getConfiguration(CONFIG.NAMESPACE);
+                const configured = cfg.get(CONFIG.SETTING_PATH);
+                if (configured && typeof configured === 'string' && configured.trim() !== '') {
+                    tagfsExecutable = configured.trim();
+                }
+            } catch (e) {
+                showError(`Configuration error: ${e.message || e}`);
+            }
 
-        exec(command, execOptions, (err, stdout, stderr) => {
-            if (err) reject(stderr || err.message);
-            else resolve(stdout);
+            const customDir = tagfsExecutable ? path.dirname(tagfsExecutable) : CONFIG.DEFAULT_FALLBACK_DIR;
+            execOptions.env = { ...process.env, PATH: `${customDir}:${process.env.PATH}` };
+
+            exec(command, execOptions, (err, stdout, stderr) => {
+                if (err) reject(stderr || err.message);
+                else resolve(stdout);
+            });
         });
     });
+    execQueue = result.catch(() => {}); // Continue chain even on error
+    return result;
 }
 
 /**
