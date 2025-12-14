@@ -34,6 +34,7 @@ let extensionInitialized = false;
 let statusBarItem = null;
 let cachedTags = null;
 let execQueue = Promise.resolve();
+let cachedFileTags = new Map();
 
 // ============================================================================
 // UTILITY HELPERS
@@ -128,7 +129,7 @@ function execPromise(command, options = {}) {
             execOptions.env = { ...process.env, PATH: `${customDir}:${process.env.PATH}` };
 
             console.log(command);
-            
+
             exec(command, execOptions, (err, stdout, stderr) => {
                 if (err) reject(stderr || err.message);
                 else resolve(stdout);
@@ -195,6 +196,7 @@ async function tagFileWithTag(workspaceFolder, relativeFilePath, tagName) {
         await execPromise(`tagfs addresource ${relativeFilePath}`, { cwd: workspaceFolder });
         await execPromise(`tagfs tagresource ${relativeFilePath} ${tagName}`, { cwd: workspaceFolder });
         showInfo(`Tagged file: ${relativeFilePath} with tag: ${tagName}`);
+        cachedFileTags.delete(relativeFilePath); // Invalidate cache
         try { await _refreshAfterTagChange(workspaceFolder, relativeFilePath); } catch (e) {}
     } catch (error) {
         showError(error);
@@ -232,6 +234,7 @@ async function untagFileWithTag(workspaceFolder, relativeFilePath, tagName) {
     try {
         await execPromise(`tagfs untagresource ${relativeFilePath} ${tagName}`, { cwd: workspaceFolder });
         showInfo(`Removed tag: ${tagName} from file: ${relativeFilePath}`);
+        cachedFileTags.delete(relativeFilePath); // Invalidate cache
         try { await _refreshAfterTagChange(workspaceFolder, relativeFilePath); } catch (e) {}
     } catch (error) {
         showError(error);
@@ -239,11 +242,16 @@ async function untagFileWithTag(workspaceFolder, relativeFilePath, tagName) {
 }
 
 /**
- * Get all tags for a file
+ * Get all tags for a file (with caching)
  */
 async function getFileTags(workspaceFolder, relativeFilePath) {
+    if (cachedFileTags.has(relativeFilePath)) {
+        return cachedFileTags.get(relativeFilePath);
+    }
     const stdout = await execPromise(`tagfs getresourcetags ${relativeFilePath}`, { cwd: workspaceFolder });
-    return parseOutputLines(stdout);
+    const tags = parseOutputLines(stdout);
+    cachedFileTags.set(relativeFilePath, tags);
+    return tags;
 }
 
 /**
@@ -868,6 +876,12 @@ async function updateTagDatabaseOnDelete(deletedPath) {
         // Example: call your CLI / internal DB update function
         const output = await execPromise(`tagfs rmresource ${deletedPath} false`, { cwd: getWorkspaceFolder() });
         showInfo(output);
+        // Invalidate cache
+        const workspaceFolder = getWorkspaceFolder();
+        if (workspaceFolder) {
+            const relativePath = getRelativeFilePath(deletedPath, workspaceFolder);
+            cachedFileTags.delete(relativePath);
+        }
     } catch (err) {
         vscode.window.showErrorMessage("Failed to update tag DB: " + err.message);
     }
@@ -881,6 +895,12 @@ async function updateTagDatabaseOnRename(oldPath, newPath) {
         // Example: call your CLI / internal DB update function
         const output = await execPromise(`tagfs mvresource ${oldPath} ${newPath} false`, { cwd: getWorkspaceFolder() });
         showInfo(output);
+        // Invalidate cache for old path
+        const workspaceFolder = getWorkspaceFolder();
+        if (workspaceFolder) {
+            const relativeOldPath = getRelativeFilePath(oldPath, workspaceFolder);
+            cachedFileTags.delete(relativeOldPath);
+        }
     } catch (err) {
         vscode.window.showErrorMessage("Failed to update tag DB: " + err.message);
     }
