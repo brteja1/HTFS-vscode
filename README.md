@@ -1,6 +1,6 @@
 # HTFS VS Code Extension
 
-VS Code integration for HTFS (Hierarchical Tagging File System). This extension lets you manage hierarchical tags for workspace files using the `tagfs` CLI from inside VS Code.
+VS Code integration for [HTFS](https://github.com/brteja1/HTFS) (Hierarchical Tagging File System). This extension lets you manage hierarchical tags for workspace files using the `tagfs` CLI from inside VS Code.
 
 ## Key features
 - Register and manage tags (`tagfs init`, `addtags`, `lstags`)
@@ -34,3 +34,4 @@ License
 
 Acknowledgments
 - This project was originally scaffolded with help from AI tools and iteratively refined.
+
