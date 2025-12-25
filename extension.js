@@ -641,11 +641,36 @@ const tagUnderlineDecorationType = vscode.window.createTextEditorDecorationType(
     rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed
 });
 
-/**
- * Escape string for use in RegExp
- */
+// Cache for decoration types by color
+const tagDecorationTypes = new Map();
+
 function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
+}
+
+/**
+ * Generate a consistent color for a tag based on its name
+ */
+function getTagColor(tag) {
+    // Simple hash function to generate consistent colors
+    let hash = 0;
+    for (let i = 0; i < tag.length; i++) {
+        hash = ((hash << 5) - hash) + tag.charCodeAt(i);
+        hash = hash & hash; // Convert to 32-bit integer
+    }
+    
+    // Fixed set of background colors for tags
+    const tagColors = [
+        '#965959ff', // Light red
+        '#5c855cff', // Light green  
+        '#6b6ba2ff', // Light blue
+        '#659393ff', // Light cyan
+        '#807a7aff'  // Light grey
+    ];
+    
+    // Use hash to select a color from the fixed set
+    const colorIndex = Math.abs(hash) % tagColors.length;
+    return tagColors[colorIndex];
 }
 
 /**
@@ -662,14 +687,18 @@ async function updateTagDecorations(editor) {
     try {
         const tags = await getFileTags(workspaceFolder, relativeFilePath);
         if (!tags || tags.length === 0) {
+            // Clear all decoration types
+            for (const decorationType of tagDecorationTypes.values()) {
+                editor.setDecorations(decorationType, []);
+            }
             editor.setDecorations(tagUnderlineDecorationType, []);
             return;
         }
 
         const docText = editor.document.getText();
-        const decorations = [];
+        const decorationsByColor = new Map();
 
-        // For each tag, find every occurrence and add an underline decoration with hover
+        // For each tag, find every occurrence and group by color
         for (const tag of tags) {
             if (!tag || typeof tag !== 'string') continue;
             const esc = '(?:^|[ \\n\\t])' + escapeRegExp(tag) + '(?:$|\\r?[ \\n\\t])';
@@ -694,6 +723,12 @@ async function updateTagDecorations(editor) {
                 );                
                 hoverString.isTrusted = true;
 
+                const tagColor = getTagColor(tag);
+
+                if (!decorationsByColor.has(tagColor)) {
+                    decorationsByColor.set(tagColor, []);
+                }
+
                 const decoration = {
                     range,
                     hoverMessage: hoverString,
@@ -703,16 +738,39 @@ async function updateTagDecorations(editor) {
                             margin: '0 0.0em 0 0',
                             color: new vscode.ThemeColor('descriptionForeground')
                         }
-                    },
-                    backgroundColor: new vscode.ThemeColor('editorHoverWidget.background')
+                    }
                 };
 
-                decorations.push(decoration);                
+                decorationsByColor.get(tagColor).push(decoration);                
             }
         }
 
-        editor.setDecorations(tagUnderlineDecorationType, decorations);
+        // Apply decorations for each color
+        for (const [color, decorations] of decorationsByColor) {
+            if (!tagDecorationTypes.has(color)) {
+                const decorationType = vscode.window.createTextEditorDecorationType({
+                    textDecoration: 'underline; text-underline-offset: 3px',
+                    rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
+                    backgroundColor: color
+                });
+                tagDecorationTypes.set(color, decorationType);
+            }
+            const decorationType = tagDecorationTypes.get(color);
+            editor.setDecorations(decorationType, decorations);
+        }
+
+        // Clear unused decoration types
+        for (const [color, decorationType] of tagDecorationTypes) {
+            if (!decorationsByColor.has(color)) {
+                editor.setDecorations(decorationType, []);
+            }
+        }
+
     } catch (e) {
+        // Clear all decorations on error
+        for (const decorationType of tagDecorationTypes.values()) {
+            editor.setDecorations(decorationType, []);
+        }
         editor.setDecorations(tagUnderlineDecorationType, []);
     }
 }
