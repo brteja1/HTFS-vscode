@@ -336,6 +336,52 @@ async function tagfsAddTag() {
 }
 
 /**
+ * Rename an existing tag
+ */
+async function tagfsRenameTag() {
+    const workspaceFolder = await getWorkspaceOrShowError();
+    if (!workspaceFolder) return;
+
+    try {
+        const tags = await fetchTags(workspaceFolder);
+        if (tags.length === 0) {
+            showInfo('No tags available to rename.');
+            return;
+        }
+
+        // Select the tag to rename
+        const oldTag = await vscode.window.showQuickPick(
+            tags,
+            { placeHolder: 'Select tag to rename' }
+        );
+        if (!oldTag) return;
+
+        // Enter new tag name
+        const newTag = await vscode.window.showInputBox({
+            prompt: 'Enter new tag name',
+            value: oldTag
+        });
+        if (!newTag || newTag === oldTag) return;
+
+        // Check if new tag already exists
+        if (tags.includes(newTag)) {
+            showError(`Tag '${newTag}' already exists.`);
+            return;
+        }
+
+        // Rename the tag
+        const stdout = await execPromise(`tagfs renametag ${oldTag} ${newTag}`, { cwd: workspaceFolder });
+        showInfo(`Renamed tag '${oldTag}' to '${newTag}'`);
+
+        // Invalidate caches
+        cachedTags = null;
+        cachedFileTags.clear(); // Clear all file tag caches since renaming affects all files
+    } catch (error) {
+        showError(error);
+    }
+}
+
+/**
  * Search for files by tag expression
  */
 async function tagfsSearchByTag(optionalTagExpr) {
@@ -712,6 +758,7 @@ function registerCommands(context) {
         vscode.commands.registerCommand('tagfs.init', tagfsInit),
         vscode.commands.registerCommand('tagfs.listtags', tagfsListTags),
         vscode.commands.registerCommand('tagfs.addtag', tagfsAddTag),
+        vscode.commands.registerCommand('tagfs.renametag', tagfsRenameTag),
         vscode.commands.registerCommand('tagfs.searchbytag', tagfsSearchByTag),
         vscode.commands.registerCommand('tagfs.linktags', tagfsLinkTags),
         vscode.commands.registerCommand('tagfs.editfiletags', tagfsEditFileTags),

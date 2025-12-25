@@ -44,6 +44,11 @@
         "category": "HTFS"
       },
       {
+        "command": "tagfs.renametag",
+        "title": "Rename Tag",
+        "category": "HTFS"
+      },
+      {
         "command": "tagfs.editfiletags",
         "title": "Add/Remove Tags to File",
         "category": "HTFS"
