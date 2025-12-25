@@ -626,7 +626,7 @@ async function updateTagDecorations(editor) {
         // For each tag, find every occurrence and add an underline decoration with hover
         for (const tag of tags) {
             if (!tag || typeof tag !== 'string') continue;
-            const esc = '(?:^|[ \\n\\t])' + escapeRegExp(tag) + '(?:$|[ \\n\\t])';
+            const esc = '(?:^|[ \\n\\t])' + escapeRegExp(tag) + '(?:$|\\r?[ \\n\\t])';
             const re = new RegExp(esc, 'g');
             let match;
             while ((match = re.exec(docText)) !== null) {
