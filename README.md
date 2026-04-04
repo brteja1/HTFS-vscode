@@ -4,6 +4,7 @@ VS Code integration for [HTFS](https://github.com/brteja1/HTFS) (Hierarchical Ta
 
 ## Key features
 - Register and manage tags (`tagfs init`, `addtags`, `lstags`)
+- Delete tags from the workspace
 - Add/remove tags from the active file
 - Search files by tag expressions
 - Show file tags in a webview and inline decorations
@@ -18,6 +19,7 @@ Common commands (Command Palette)
 - `HTFS: Initialize` — run `tagfs init` in the workspace
 - `HTFS: Show All Tags` — list all tags (`tagfs lstags`)
 - `HTFS: Add New Tag` — create a new tag (`tagfs addtags`)
+- `HTFS: Delete Tag` — remove a tag from HTFS (`tagfs rmtag`)
 - `HTFS: Add/Remove Tags to File` — edit tags on the active file
 - `HTFS: Search for Files with Tags` — run `tagfs lsresources <expr>` and open selected file
 - `HTFS: Link Tags` — link an existing tag to a parent tag (`tagfs linktags`)

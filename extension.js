@@ -382,6 +382,54 @@ async function tagfsRenameTag() {
 }
 
 /**
+ * Delete an existing tag
+ */
+async function tagfsDeleteTag() {
+    const workspaceFolder = await getWorkspaceOrShowError();
+    if (!workspaceFolder) return;
+
+    try {
+        const tags = await fetchTags(workspaceFolder);
+        if (tags.length === 0) {
+            showInfo('No tags available to delete.');
+            return;
+        }
+
+        const tagToDelete = await vscode.window.showQuickPick(
+            tags,
+            { placeHolder: 'Select tag to delete' }
+        );
+        if (!tagToDelete) return;
+
+        const confirmation = await vscode.window.showWarningMessage(
+            `Delete tag '${tagToDelete}'? This will remove it from HTFS.`,
+            { modal: true },
+            'Delete Tag'
+        );
+        if (confirmation !== 'Delete Tag') return;
+
+        await execPromise(`tagfs rmtag ${tagToDelete}`, { cwd: workspaceFolder });
+        showInfo(`Deleted tag '${tagToDelete}'`);
+
+        cachedTags = null;
+        cachedFileTags.clear();
+
+        try {
+            await updateTagCount();
+        } catch (e) {}
+
+        const editor = vscode.window.activeTextEditor;
+        if (editor) {
+            try {
+                await updateTagDecorations(editor);
+            } catch (e) {}
+        }
+    } catch (error) {
+        showError(error);
+    }
+}
+
+/**
  * Search for files by tag expression
  */
 async function tagfsSearchByTag(optionalTagExpr) {
@@ -817,6 +865,7 @@ function registerCommands(context) {
         vscode.commands.registerCommand('tagfs.listtags', tagfsListTags),
         vscode.commands.registerCommand('tagfs.addtag', tagfsAddTag),
         vscode.commands.registerCommand('tagfs.renametag', tagfsRenameTag),
+        vscode.commands.registerCommand('tagfs.deletetag', tagfsDeleteTag),
         vscode.commands.registerCommand('tagfs.searchbytag', tagfsSearchByTag),
         vscode.commands.registerCommand('tagfs.linktags', tagfsLinkTags),
         vscode.commands.registerCommand('tagfs.editfiletags', tagfsEditFileTags),
