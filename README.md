@@ -7,6 +7,7 @@ VS Code integration for [HTFS](https://github.com/brteja1/HTFS) (Hierarchical Ta
 - Delete tags from the workspace
 - Add/remove tags from the active file
 - Search files by tag expressions
+- Browse tags in an Explorer tree with child-tag navigation
 - Show file tags in a webview and inline decorations
 - Completion provider: type `##` then pick a tag to insert and apply it to the current file
 - Link tags (creates parent-child relationships) via `tagfs.linktags`
@@ -20,11 +21,21 @@ Common commands (Command Palette)
 - `HTFS: Show All Tags` — list all tags (`tagfs lstags`)
 - `HTFS: Add New Tag` — create a new tag (`tagfs addtags`)
 - `HTFS: Delete Tag` — remove a tag from HTFS (`tagfs rmtag`)
+- `HTFS: Refresh Tag Tree` — reload the Explorer tree
+- `HTFS: Add Child Tag` — create and link a child tag under the selected tree node
+- `HTFS: Link Existing Tag Here` — link an existing tag under the selected tree node
+- `HTFS: Unlink Child Tag From Here` — remove a child relationship from the selected tree node
 - `HTFS: Add/Remove Tags to File` — edit tags on the active file
 - `HTFS: Search for Files with Tags` — run `tagfs lsresources <expr>` and open selected file
 - `HTFS: Link Tags` — link an existing tag to a parent tag (`tagfs linktags`)
 - `HTFS: Show Tags for File` — quick view tags on the active file
 - `HTFS: Set tagfs path` — save `tagfs.path` workspace setting
+
+Explorer tree notes
+- The `HTFS Tag Tree` view is rooted in the Explorer sidebar.
+- Expanding a tag shows its direct children, using `tagfs lstags <tag>`.
+- Clicking a tag searches for files with that tag.
+- Right-click a tag to rename, delete, add children, link existing tags, or unlink a child.
 
 Decoration & completion notes
 - Type `##` in any file to trigger tag completion and apply the selected tag to the current file.

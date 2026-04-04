@@ -33,8 +33,10 @@ let tagfsExecutable = null;
 let extensionInitialized = false;
 let statusBarItem = null;
 let cachedTags = null;
+let cachedChildTags = new Map();
 let execQueue = Promise.resolve();
 let cachedFileTags = new Map();
+let tagTreeProvider = null;
 
 // ============================================================================
 // UTILITY HELPERS
@@ -67,6 +69,21 @@ function parseOutputLines(output) {
         .split(/\r?\n/)
         .map(line => line.trim())
         .filter(line => line !== '');
+}
+
+/**
+ * Normalize a tree item or string into a tag name
+ */
+function normalizeTagName(input) {
+    if (!input) return null;
+    if (typeof input === 'string') return input;
+    if (Array.isArray(input) && input.length > 0) {
+        return normalizeTagName(input[0]);
+    }
+    if (typeof input === 'object') {
+        return input.tagName || input.label || null;
+    }
+    return null;
 }
 
 /**
@@ -153,6 +170,34 @@ async function fetchTags(workspaceFolder) {
     const stdout = await execPromise('tagfs lstags', { cwd: workspaceFolder });
     cachedTags = parseOutputLines(stdout);
     return cachedTags;
+}
+
+/**
+ * Fetch direct child tags for a tag from the workspace
+ */
+async function fetchChildTags(workspaceFolder, tagName) {
+    const cacheKey = `${workspaceFolder}::${tagName}`;
+    if (cachedChildTags.has(cacheKey)) {
+        return cachedChildTags.get(cacheKey);
+    }
+
+    const stdout = await execPromise(`tagfs lstags ${tagName}`, { cwd: workspaceFolder });
+    const children = parseOutputLines(stdout);
+    cachedChildTags.set(cacheKey, children);
+    return children;
+}
+
+/**
+ * Clear cached hierarchy and file tag state
+ */
+function invalidateTagCaches({ refreshTree = false } = {}) {
+    cachedTags = null;
+    cachedChildTags.clear();
+    cachedFileTags.clear();
+
+    if (refreshTree && tagTreeProvider) {
+        tagTreeProvider.refresh();
+    }
 }
 
 // ============================================================================
@@ -329,7 +374,8 @@ async function tagfsAddTag() {
     try {
         const stdout = await execPromise(`tagfs addtags ${tagName}`, { cwd: workspaceFolder });
         showInfo(stdout);
-        cachedTags = null; // Invalidate cache
+        invalidateTagCaches({ refreshTree: true });
+        await updateTagCount();
     } catch (error) {
         showError(error);
     }
@@ -338,7 +384,7 @@ async function tagfsAddTag() {
 /**
  * Rename an existing tag
  */
-async function tagfsRenameTag() {
+async function tagfsRenameTag(selectedTagInput) {
     const workspaceFolder = await getWorkspaceOrShowError();
     if (!workspaceFolder) return;
 
@@ -349,19 +395,25 @@ async function tagfsRenameTag() {
             return;
         }
 
+        let oldTag = null;
+        const selectedTag = normalizeTagName(selectedTagInput);
+        if (selectedTag && tags.includes(selectedTag)) {
+            oldTag = selectedTag;
+        }
+
         // Select the tag to rename
-        const oldTag = await vscode.window.showQuickPick(
+        const effectiveOldTag = oldTag || await vscode.window.showQuickPick(
             tags,
             { placeHolder: 'Select tag to rename' }
         );
-        if (!oldTag) return;
+        if (!effectiveOldTag) return;
 
         // Enter new tag name
         const newTag = await vscode.window.showInputBox({
             prompt: 'Enter new tag name',
-            value: oldTag
+            value: effectiveOldTag
         });
-        if (!newTag || newTag === oldTag) return;
+        if (!newTag || newTag === effectiveOldTag) return;
 
         // Check if new tag already exists
         if (tags.includes(newTag)) {
@@ -370,12 +422,12 @@ async function tagfsRenameTag() {
         }
 
         // Rename the tag
-        const stdout = await execPromise(`tagfs renametag ${oldTag} ${newTag}`, { cwd: workspaceFolder });
-        showInfo(`Renamed tag '${oldTag}' to '${newTag}'`);
+        const stdout = await execPromise(`tagfs renametag ${effectiveOldTag} ${newTag}`, { cwd: workspaceFolder });
+        showInfo(`Renamed tag '${effectiveOldTag}' to '${newTag}'`);
 
         // Invalidate caches
-        cachedTags = null;
-        cachedFileTags.clear(); // Clear all file tag caches since renaming affects all files
+        invalidateTagCaches({ refreshTree: true });
+        await updateTagCount();
     } catch (error) {
         showError(error);
     }
@@ -384,7 +436,7 @@ async function tagfsRenameTag() {
 /**
  * Delete an existing tag
  */
-async function tagfsDeleteTag() {
+async function tagfsDeleteTag(selectedTagInput) {
     const workspaceFolder = await getWorkspaceOrShowError();
     if (!workspaceFolder) return;
 
@@ -395,10 +447,13 @@ async function tagfsDeleteTag() {
             return;
         }
 
-        const tagToDelete = await vscode.window.showQuickPick(
-            tags,
-            { placeHolder: 'Select tag to delete' }
-        );
+        const selectedTag = normalizeTagName(selectedTagInput);
+        const tagToDelete = selectedTag && tags.includes(selectedTag)
+            ? selectedTag
+            : await vscode.window.showQuickPick(
+                tags,
+                { placeHolder: 'Select tag to delete' }
+            );
         if (!tagToDelete) return;
 
         const confirmation = await vscode.window.showWarningMessage(
@@ -411,8 +466,7 @@ async function tagfsDeleteTag() {
         await execPromise(`tagfs rmtag ${tagToDelete}`, { cwd: workspaceFolder });
         showInfo(`Deleted tag '${tagToDelete}'`);
 
-        cachedTags = null;
-        cachedFileTags.clear();
+        invalidateTagCaches({ refreshTree: true });
 
         try {
             await updateTagCount();
@@ -437,8 +491,9 @@ async function tagfsSearchByTag(optionalTagExpr) {
     if (!workspaceFolder) return;
 
     // If caller passes argument → use it; else → prompt the user
+    const normalizedTagExpr = normalizeTagName(optionalTagExpr);
     const tagExpr =
-        optionalTagExpr ||
+        normalizedTagExpr ||
         await vscode.window.showInputBox({
             prompt: 'Enter tag expression (e.g., "tag1 & ~tag2")'
         });
@@ -497,6 +552,111 @@ async function tagfsLinkTags() {
         // Link the tags
         const stdout = await execPromise(`tagfs linktags ${childTag} ${parentTag}`, { cwd: workspaceFolder });
         showInfo(`Linked tag '${childTag}' to parent tag '${parentTag}'`);
+        invalidateTagCaches({ refreshTree: true });
+        await updateTagCount();
+    } catch (error) {
+        showError(error);
+    }
+}
+
+/**
+ * Link an existing child tag under the selected parent node
+ */
+async function tagfsLinkExistingTagHere(parentTag) {
+    const workspaceFolder = await getWorkspaceOrShowError();
+    if (!workspaceFolder) return;
+
+    try {
+        const tags = await fetchTags(workspaceFolder);
+        const normalizedParentTag = normalizeTagName(parentTag) || await vscode.window.showQuickPick(
+            tags,
+            { placeHolder: 'Select parent tag' }
+        );
+        if (!normalizedParentTag) return;
+
+        const eligibleTags = tags.filter(tag => tag !== normalizedParentTag);
+        if (eligibleTags.length === 0) {
+            showInfo('No eligible tags available to link.');
+            return;
+        }
+
+        const childTag = await vscode.window.showQuickPick(eligibleTags, {
+            placeHolder: `Select a child tag to link under ${normalizedParentTag}`
+        });
+        if (!childTag) return;
+
+        await execPromise(`tagfs linktags ${childTag} ${normalizedParentTag}`, { cwd: workspaceFolder });
+        showInfo(`Linked tag '${childTag}' to parent tag '${normalizedParentTag}'`);
+        invalidateTagCaches({ refreshTree: true });
+        await updateTagCount();
+    } catch (error) {
+        showError(error);
+    }
+}
+
+/**
+ * Create a new child tag under the selected parent node
+ */
+async function tagfsAddChildTag(parentTag) {
+    const workspaceFolder = await getWorkspaceOrShowError();
+    if (!workspaceFolder) return;
+
+    try {
+        const tags = await fetchTags(workspaceFolder);
+        const normalizedParentTag = normalizeTagName(parentTag) || await vscode.window.showQuickPick(
+            tags,
+            { placeHolder: 'Select parent tag' }
+        );
+        if (!normalizedParentTag) return;
+
+        const childTag = await vscode.window.showInputBox({
+            prompt: `Enter new child tag name for ${normalizedParentTag}`
+        });
+        if (!childTag) return;
+
+        if (!tags.includes(childTag)) {
+            await execPromise(`tagfs addtags ${childTag}`, { cwd: workspaceFolder });
+        }
+
+        await execPromise(`tagfs linktags ${childTag} ${normalizedParentTag}`, { cwd: workspaceFolder });
+        showInfo(`Added child tag '${childTag}' under '${normalizedParentTag}'`);
+        invalidateTagCaches({ refreshTree: true });
+        await updateTagCount();
+    } catch (error) {
+        showError(error);
+    }
+}
+
+/**
+ * Unlink one of the direct child tags from the selected parent node
+ */
+async function tagfsUnlinkChildTag(parentTag) {
+    const workspaceFolder = await getWorkspaceOrShowError();
+    if (!workspaceFolder) return;
+
+    try {
+        const tags = await fetchTags(workspaceFolder);
+        const normalizedParentTag = normalizeTagName(parentTag) || await vscode.window.showQuickPick(
+            tags,
+            { placeHolder: 'Select parent tag' }
+        );
+        if (!normalizedParentTag) return;
+
+        const childTags = await fetchChildTags(workspaceFolder, normalizedParentTag);
+        if (childTags.length === 0) {
+            showInfo('No direct child tags to unlink.');
+            return;
+        }
+
+        const childTag = await vscode.window.showQuickPick(childTags, {
+            placeHolder: `Select a child tag to unlink from ${normalizedParentTag}`
+        });
+        if (!childTag) return;
+
+        await execPromise(`tagfs unlinktags ${childTag} ${normalizedParentTag}`, { cwd: workspaceFolder });
+        showInfo(`Unlinked tag '${childTag}' from parent tag '${normalizedParentTag}'`);
+        invalidateTagCaches({ refreshTree: true });
+        await updateTagCount();
     } catch (error) {
         showError(error);
     }
@@ -852,6 +1012,124 @@ class TagFsCodeLensProvider {
     }
 }
 
+/**
+ * Tree item representing a tag in the HTFS hierarchy
+ */
+class TagTreeItem extends vscode.TreeItem {
+    constructor(tagName, collapsibleState, childCount = 0) {
+        super(tagName, collapsibleState);
+        this.tagName = tagName;
+        this.contextValue = 'htfsTagNode';
+        this.iconPath = new vscode.ThemeIcon('tag');
+        this.description = childCount > 0 ? `${childCount}` : '';
+        this.tooltip = new vscode.MarkdownString(
+            `**${tagName}**\n\nRight-click to search, rename, delete, or edit child tags.`
+        );
+    }
+}
+
+/**
+ * Tree item shown when HTFS is unavailable or not configured
+ */
+class TagTreeMessageItem extends vscode.TreeItem {
+    constructor(message) {
+        super(message, vscode.TreeItemCollapsibleState.None);
+        this.contextValue = 'htfsInfo';
+        this.iconPath = new vscode.ThemeIcon('info');
+    }
+}
+
+/**
+ * Tree provider for the HTFS tag hierarchy
+ */
+class TagTreeProvider {
+    constructor() {
+        this._onDidChangeTreeData = new vscode.EventEmitter();
+        this.onDidChangeTreeData = this._onDidChangeTreeData.event;
+        this._treeCache = null;
+    }
+
+    refresh() {
+        this._treeCache = null;
+        this._onDidChangeTreeData.fire();
+    }
+
+    async getChildren(element) {
+        const workspaceFolder = getWorkspaceFolder();
+        if (!workspaceFolder) {
+            return [new TagTreeMessageItem('Open a workspace to view HTFS tags')];
+        }
+
+        const cfg = vscode.workspace.getConfiguration(CONFIG.NAMESPACE);
+        const configured = cfg.get(CONFIG.SETTING_PATH);
+        if (!configured || typeof configured !== 'string' || configured.trim() === '') {
+            return [new TagTreeMessageItem('Set tagfs.path to load HTFS tags')];
+        }
+
+        try {
+            const model = await this.getTreeModel(workspaceFolder);
+            if (!element) {
+                return model.roots.map(tag => this.createTreeItem(tag, model));
+            }
+
+            const children = model.childrenByTag.get(element.tagName) || [];
+            return children.map(tag => this.createTreeItem(tag, model));
+        } catch (error) {
+            return [new TagTreeMessageItem('Initialize HTFS in this workspace to load tags')];
+        }
+    }
+
+    getTreeItem(element) {
+        return element;
+    }
+
+    async getTreeModel(workspaceFolder) {
+        if (this._treeCache && this._treeCache.workspaceFolder === workspaceFolder) {
+            return this._treeCache;
+        }
+
+        const allTags = await fetchTags(workspaceFolder);
+        const childrenByTag = new Map();
+        const childSet = new Set();
+
+        for (const tag of allTags) {
+            const children = await fetchChildTags(workspaceFolder, tag);
+            const uniqueChildren = [...new Set(children)].filter(child => child && child !== tag);
+            childrenByTag.set(tag, uniqueChildren);
+            for (const child of uniqueChildren) {
+                childSet.add(child);
+            }
+        }
+
+        const roots = allTags.filter(tag => !childSet.has(tag));
+        const normalizedRoots = roots.length > 0 ? roots : allTags;
+
+        this._treeCache = {
+            workspaceFolder,
+            roots: normalizedRoots,
+            childrenByTag,
+        };
+
+        return this._treeCache;
+    }
+
+    createTreeItem(tagName, model) {
+        const children = model.childrenByTag.get(tagName) || [];
+        return new TagTreeItem(
+            tagName,
+            children.length > 0 ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
+            children.length
+        );
+    }
+}
+
+function registerTagTreeProvider(context) {
+    tagTreeProvider = new TagTreeProvider();
+    context.subscriptions.push(
+        vscode.window.registerTreeDataProvider('tagfsTagTree', tagTreeProvider)
+    );
+}
+
 // ============================================================================
 // COMMAND REGISTRATION
 // ============================================================================
@@ -866,6 +1144,20 @@ function registerCommands(context) {
         vscode.commands.registerCommand('tagfs.addtag', tagfsAddTag),
         vscode.commands.registerCommand('tagfs.renametag', tagfsRenameTag),
         vscode.commands.registerCommand('tagfs.deletetag', tagfsDeleteTag),
+        vscode.commands.registerCommand('tagfs.refreshTagTree', async () => {
+            if (tagTreeProvider) {
+                tagTreeProvider.refresh();
+            }
+        }),
+        vscode.commands.registerCommand('tagfs.addchildtag', async (parentTag) => {
+            await tagfsAddChildTag(parentTag);
+        }),
+        vscode.commands.registerCommand('tagfs.linkexistingtag', async (parentTag) => {
+            await tagfsLinkExistingTagHere(parentTag);
+        }),
+        vscode.commands.registerCommand('tagfs.unlinkchildtag', async (parentTag) => {
+            await tagfsUnlinkChildTag(parentTag);
+        }),
         vscode.commands.registerCommand('tagfs.searchbytag', tagfsSearchByTag),
         vscode.commands.registerCommand('tagfs.linktags', tagfsLinkTags),
         vscode.commands.registerCommand('tagfs.editfiletags', tagfsEditFileTags),
@@ -890,6 +1182,9 @@ function registerConfigCommand(context) {
             try {
                 await cfg.update(CONFIG.SETTING_PATH, input.trim(), vscode.ConfigurationTarget.Workspace);
                 showInfo('HTFS path saved. Reloading extension features...');
+                if (tagTreeProvider) {
+                    tagTreeProvider.refresh();
+                }
                 tryInitFeatures(context);
             } catch (e) {
                 showError(e.message || e);
@@ -1117,6 +1412,9 @@ function activate(context) {
     statusBarItem.text = STATUS_MESSAGES.LOADING;
     statusBarItem.show();
     context.subscriptions.push(statusBarItem);
+
+    // Register the tag tree view up front so it can prompt configuration state
+    registerTagTreeProvider(context);
 
     // Register configuration command (always available)
     registerConfigCommand(context);

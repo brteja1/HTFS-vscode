@@ -27,6 +27,14 @@
         }
       }
     },
+    "views": {
+      "explorer": [
+        {
+          "id": "tagfsTagTree",
+          "name": "HTFS Tag Tree"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "tagfs.init",
@@ -54,6 +62,26 @@
         "category": "HTFS"
       },
       {
+        "command": "tagfs.refreshTagTree",
+        "title": "Refresh Tag Tree",
+        "category": "HTFS"
+      },
+      {
+        "command": "tagfs.addchildtag",
+        "title": "Add Child Tag",
+        "category": "HTFS"
+      },
+      {
+        "command": "tagfs.linkexistingtag",
+        "title": "Link Existing Tag Here",
+        "category": "HTFS"
+      },
+      {
+        "command": "tagfs.unlinkchildtag",
+        "title": "Unlink Child Tag From Here",
+        "category": "HTFS"
+      },
+      {
         "command": "tagfs.editfiletags",
         "title": "Add/Remove Tags to File",
         "category": "HTFS"
@@ -78,7 +106,53 @@
         "title": "Set tagfs path",
         "category": "HTFS"
       }
-    ]
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "tagfs.refreshTagTree",
+          "when": "view == tagfsTagTree",
+          "group": "navigation"
+        },
+        {
+          "command": "tagfs.addtag",
+          "when": "view == tagfsTagTree",
+          "group": "navigation@1"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "tagfs.searchbytag",
+          "when": "view == tagfsTagTree && viewItem == htfsTagNode",
+          "group": "inline@1"
+        },
+        {
+          "command": "tagfs.addchildtag",
+          "when": "view == tagfsTagTree && viewItem == htfsTagNode",
+          "group": "inline@2"
+        },
+        {
+          "command": "tagfs.linkexistingtag",
+          "when": "view == tagfsTagTree && viewItem == htfsTagNode",
+          "group": "inline@3"
+        },
+        {
+          "command": "tagfs.unlinkchildtag",
+          "when": "view == tagfsTagTree && viewItem == htfsTagNode",
+          "group": "inline@4"
+        },
+        {
+          "command": "tagfs.renametag",
+          "when": "view == tagfsTagTree && viewItem == htfsTagNode",
+          "group": "inline@5"
+        },
+        {
+          "command": "tagfs.deletetag",
+          "when": "view == tagfsTagTree && viewItem == htfsTagNode",
+          "group": "inline@6"
+        }
+      ]
+    }
   },
   "categories": [
     "Other"
